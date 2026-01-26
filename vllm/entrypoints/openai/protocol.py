@@ -1778,11 +1778,11 @@ class AudioSpeechRequest(OpenAIBaseModel):
     seed: Optional[int] = None
     """ Random seed for reproducible generation """
 
-    ras_window_length: Optional[int] = 7
-    """ Window size for repetition detection (RAS). Set to None to disable. """
+    ras_window_length: Optional[int] = None
+    """ Window size for repetition detection (RAS). None uses server default, 0 disables. """
 
-    ras_max_num_repeat: Optional[int] = 2
-    """ Max allowed repetitions within window before token is blocked (RAS) """
+    ras_max_num_repeat: Optional[int] = None
+    """ Max allowed repetitions within window before token is blocked (RAS). None uses server default. """
 
     @model_validator(mode="before")
     @classmethod

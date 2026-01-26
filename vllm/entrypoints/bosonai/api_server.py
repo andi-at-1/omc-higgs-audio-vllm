@@ -415,6 +415,8 @@ async def init_app_state(
         request_logger=request_logger,
         chat_template_content_format=args.chat_template_content_format,
         audio_tokenizer=audio_tokenizer,
+        default_ras_window_length=args.ras_window_length,
+        default_ras_max_num_repeat=args.ras_max_num_repeat,
     ) if model_config.runner_type == "generate" else None
 
     state.enable_server_load_tracking = args.enable_server_load_tracking
@@ -794,6 +796,16 @@ def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
                         type=int,
                         default=10,
                         help="The interval to refresh the voice presets. ")
+    parser.add_argument("--ras-window-length",
+                        type=int,
+                        default=7,
+                        help="Default RAS window length for repetition detection. "
+                        "Set to 0 to disable RAS. Default: 7")
+    parser.add_argument("--ras-max-num-repeat",
+                        type=int,
+                        default=2,
+                        help="Default max repetitions before token is blocked. "
+                        "Default: 2")
 
     parser = AsyncEngineArgs.add_cli_args(parser)
 

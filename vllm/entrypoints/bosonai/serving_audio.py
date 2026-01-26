@@ -137,6 +137,8 @@ class HiggsAudioServingAudio(OpenAIServing):
         *,
         request_logger: Optional[RequestLogger],
         audio_tokenizer: Optional[AudioTokenizer] = None,
+        default_ras_window_length: int = 7,
+        default_ras_max_num_repeat: int = 2,
     ):
         super().__init__(engine_client=engine_client,
                          model_config=model_config,
@@ -152,6 +154,13 @@ class HiggsAudioServingAudio(OpenAIServing):
             source = "model" if source == "auto" else source
             logger.info("Using default chat sampling params from %s: %s",
                         source, self.default_sampling_params)
+
+        # RAS defaults from CLI
+        self.default_ras_window_length = default_ras_window_length
+        self.default_ras_max_num_repeat = default_ras_max_num_repeat
+        if default_ras_window_length > 0:
+            logger.info("RAS enabled with window_length=%d, max_num_repeat=%d",
+                        default_ras_window_length, default_ras_max_num_repeat)
 
         self.audio_tokenizer = audio_tokenizer
         self.audio_num_codebooks = self.audio_tokenizer.num_codebooks
@@ -205,6 +214,10 @@ class HiggsAudioServingAudio(OpenAIServing):
         generators: list[AsyncGenerator[RequestOutput, None]] = []
         try:
             sampling_params = request.to_sampling_params()
+            # Apply server defaults for RAS if not specified in request
+            if sampling_params.ras_window_length is None and self.default_ras_window_length > 0:
+                sampling_params.ras_window_length = self.default_ras_window_length
+                sampling_params.ras_max_num_repeat = self.default_ras_max_num_repeat
             self._log_inputs(request_id,
                              request.input,
                              params=sampling_params,
