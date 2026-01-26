@@ -277,7 +277,9 @@ def build_app(args: Namespace) -> FastAPI:
                             status_code=HTTPStatus.BAD_REQUEST)
 
     # Ensure --api-key option from CLI takes precedence over VLLM_API_KEY
-    if token := args.api_key or envs.VLLM_API_KEY:
+    # Supports multiple keys via nargs='*' (e.g. --api-key sk-key1 sk-key2 sk-key3)
+    if tokens := args.api_key or ([envs.VLLM_API_KEY] if envs.VLLM_API_KEY else None):
+        valid_tokens = set(tokens)
 
         @app.middleware("http")
         async def authentication(request: Request, call_next):
@@ -288,10 +290,13 @@ def build_app(args: Namespace) -> FastAPI:
                 url_path = url_path[len(app.root_path):]
             if not url_path.startswith("/v1"):
                 return await call_next(request)
-            if request.headers.get("Authorization") != "Bearer " + token:
-                return JSONResponse(content={"error": "Unauthorized"},
-                                    status_code=401)
-            return await call_next(request)
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                provided_token = auth_header[7:]  # Strip "Bearer " prefix
+                if provided_token in valid_tokens:
+                    return await call_next(request)
+            return JSONResponse(content={"error": "Unauthorized"},
+                                status_code=401)
 
     if args.enable_request_id_headers:
         logger.warning(
@@ -647,10 +652,10 @@ def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:
                         default=["*"],
                         help="Allowed headers.")
     parser.add_argument("--api-key",
-                        type=nullable_str,
+                        nargs='*',
                         default=None,
-                        help="If provided, the server will require this key "
-                        "to be presented in the header.")
+                        help="If provided, the server will require one of "
+                        "these keys to be presented in the header.")
     parser.add_argument(
         "--lora-modules",
         type=nullable_str,
