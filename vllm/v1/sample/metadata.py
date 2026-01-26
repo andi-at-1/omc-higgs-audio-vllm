@@ -41,3 +41,7 @@ class SamplingMetadata:
 
     # req_index -> bad_words_token_ids
     bad_words_token_ids: dict[int, list[list[int]]]
+
+    # RAS (Repetition Aware Sampling) parameters for audio generation
+    # req_index -> (ras_window_length, ras_max_num_repeat)
+    ras_params: dict[int, tuple[int, int]]

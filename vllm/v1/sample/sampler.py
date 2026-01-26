@@ -9,6 +9,7 @@ from vllm.v1.sample.metadata import SamplingMetadata
 from vllm.v1.sample.ops.bad_words import apply_bad_words
 from vllm.v1.sample.ops.penalties import (apply_all_penalties,
                                           apply_min_token_penalties)
+from collections import Counter
 from vllm.v1.sample.ops.topk_topp_sampler import TopKTopPSampler
 
 _SAMPLING_EPS = 1e-5
@@ -45,6 +46,8 @@ class Sampler(nn.Module):
         logits = self.apply_logits_bias(logits, sampling_metadata)
         # Apply penalties (e.g., min_tokens, freq_penalties).
         logits = self.apply_penalties(logits, sampling_metadata)
+        # Apply RAS (Repetition Aware Sampling) for audio generation.
+        logits = self.apply_ras_penalty(logits, sampling_metadata)
         # Sample the next token.
         sampled = self.sample(logits, sampling_metadata)
         # Convert sampled token ids to int64 (long) type to ensure compatibility
@@ -257,4 +260,55 @@ class Sampler(nn.Module):
                 sampling_metadata.bad_words_token_ids,
                 sampling_metadata.output_token_ids,
             )
+        return logits
+
+    def apply_ras_penalty(
+        self,
+        logits: torch.Tensor,
+        sampling_metadata: SamplingMetadata,
+    ) -> torch.Tensor:
+        """
+        Apply Repetition Aware Sampling (RAS) penalty for audio generation.
+
+        RAS prevents audio loops by blocking tokens that appear too frequently
+        within a sliding window of recent output tokens.
+
+        Algorithm:
+        1. For each request with RAS enabled:
+           - Get the last `window_length` output tokens
+           - Count occurrences of each token in the window
+           - If any token appears >= `max_num_repeat` times, set its logit to -inf
+
+        Args:
+            logits: Tensor of shape (num_requests, vocab_size)
+            sampling_metadata: Contains ras_params dict mapping
+                               req_index -> (window_length, max_num_repeat)
+
+        Returns:
+            Modified logits tensor with RAS penalties applied
+        """
+        if not sampling_metadata.ras_params:
+            return logits
+
+        for req_index, (window_length, max_num_repeat) in \
+                sampling_metadata.ras_params.items():
+            if req_index >= len(sampling_metadata.output_token_ids):
+                continue
+
+            output_tokens = sampling_metadata.output_token_ids[req_index]
+            if len(output_tokens) < window_length:
+                window = output_tokens
+            else:
+                window = output_tokens[-window_length:]
+
+            # Count token occurrences in window
+            token_counts = Counter(window)
+
+            # Block tokens that appear too frequently
+            # Only block if token_id is within vocab size (handles audio vs text logits)
+            vocab_size = logits.shape[1]
+            for token_id, count in token_counts.items():
+                if count >= max_num_repeat and token_id < vocab_size:
+                    logits[req_index, token_id] = float('-inf')
+
         return logits

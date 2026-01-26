@@ -1586,6 +1586,7 @@ class GPUModelRunner(LoRAModelRunnerMixin):
             logit_bias=[None for _ in range(num_reqs)],
             allowed_token_ids_mask=None,
             bad_words_token_ids={},
+            ras_params={},
         )
         try:
             if mm_logits is not None:

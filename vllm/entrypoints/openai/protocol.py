@@ -1751,7 +1751,7 @@ class AudioSpeechRequest(OpenAIBaseModel):
     """ The voice to use for the audio speech request. """
 
     speed: float = 1.0
-    """ The speed of the audio speech request. """
+    """ Speech speed multiplier (0.25-4.0). Values <1 slow down, >1 speed up. """
 
     temperature: float = 1.0
     """ The temperature of the audio speech request. """
@@ -1775,6 +1775,25 @@ class AudioSpeechRequest(OpenAIBaseModel):
     audio_chunk_overlap_size: Optional[int] = None
     """ The overlap size of the audio chunk """
 
+    seed: Optional[int] = None
+    """ Random seed for reproducible generation """
+
+    ras_window_length: Optional[int] = 7
+    """ Window size for repetition detection (RAS). Set to None to disable. """
+
+    ras_max_num_repeat: Optional[int] = 2
+    """ Max allowed repetitions within window before token is blocked (RAS) """
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_speed(cls, data):
+        if isinstance(data, dict):
+            speed = data.get("speed", 1.0)
+            if speed < 0.25 or speed > 4.0:
+                raise ValueError(
+                    f"speed must be between 0.25 and 4.0, got {speed}")
+        return data
+
     def to_sampling_params(self) -> SamplingParams:
         return SamplingParams.from_optional(
             temperature=self.temperature,
@@ -1782,4 +1801,7 @@ class AudioSpeechRequest(OpenAIBaseModel):
             top_k=self.top_k,
             stop=['<|eot_id|>', '<|end_of_text|>', '<|audio_eos|>'],
             max_tokens=self.max_tokens,
+            seed=self.seed,
+            ras_window_length=self.ras_window_length,
+            ras_max_num_repeat=self.ras_max_num_repeat,
             output_kind=RequestOutputKind.DELTA)

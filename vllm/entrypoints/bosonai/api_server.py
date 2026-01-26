@@ -572,10 +572,46 @@ async def create_audio_speech(request: AudioSpeechRequest,
     return StreamingResponse(content=generator, media_type="audio/mpeg")
 
 
+def detect_language_from_voice_id(voice_id: str) -> str:
+    """Detect language from voice ID naming convention."""
+    if voice_id.startswith("zh_"):
+        return "chinese"
+
+    suffix_map = {
+        "_de": "german",
+        "_es": "spanish",
+        "_fr": "french",
+        "_it": "italian",
+        "_pt": "portuguese",
+        "_ja": "japanese",
+        "_ko": "korean",
+    }
+
+    for suffix, lang in suffix_map.items():
+        if voice_id.endswith(suffix):
+            return lang
+
+    return "english"  # Default
+
+
 @router.get("/v1/audio/voices")
 async def get_audio_voices(raw_request: Request):
-    voices = voice_presets(raw_request).keys()
-    return list(voices)
+    """List available voice presets with metadata."""
+    presets = voice_presets(raw_request)
+    voices = []
+
+    for voice_id, config in presets.items():
+        language = detect_language_from_voice_id(voice_id)
+        transcript = config.get("transcript", "")
+
+        voices.append({
+            "voice_id": voice_id,
+            "name": voice_id.replace("_", " ").title(),
+            "description": transcript[:100] + "..." if len(transcript) > 100 else transcript,
+            "labels": {"language": language}
+        })
+
+    return {"voices": voices}
 
 
 def make_arg_parser(parser: FlexibleArgumentParser) -> FlexibleArgumentParser:

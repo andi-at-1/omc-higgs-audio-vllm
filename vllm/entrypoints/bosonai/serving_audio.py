@@ -43,6 +43,33 @@ OPENAI_TTS_CHANNELS = 1
 
 TTS_SYSTEM_PROMPT = "Convert text to speech with the same voice."
 
+# Speed limits for time-stretching
+MIN_SPEED = 0.25
+MAX_SPEED = 4.0
+
+
+def apply_speed(audio: np.ndarray, speed: float) -> np.ndarray:
+    """
+    Apply speed change to audio using time-stretching.
+
+    Uses librosa's time_stretch which preserves pitch while changing speed.
+
+    Args:
+        audio: Audio waveform as numpy array (float32, mono)
+        speed: Speed multiplier (0.25-4.0, 1.0 = normal)
+
+    Returns:
+        Time-stretched audio
+    """
+    if speed == 1.0:
+        return audio
+
+    # Clamp speed to safe range
+    speed = max(MIN_SPEED, min(MAX_SPEED, speed))
+
+    # librosa time_stretch: rate > 1 = faster, rate < 1 = slower
+    return librosa.effects.time_stretch(audio, rate=speed)
+
 
 @lru_cache(maxsize=50)
 def encode_base64_content_from_file(file_path: str) -> str:
@@ -198,7 +225,8 @@ class HiggsAudioServingAudio(OpenAIServing):
         assert len(generators) == 1
         result_generator, = generators
 
-        return self.audio_speech_stream_generator(request, result_generator)
+        return self.audio_speech_stream_generator(request, result_generator,
+                                                     raw_request)
 
     async def prepare_engine_prompt(
             self,
@@ -299,6 +327,7 @@ class HiggsAudioServingAudio(OpenAIServing):
         self,
         request: AudioSpeechRequest,
         result_generator: AsyncIterator[RequestOutput],
+        raw_request: Optional[Request] = None,
     ) -> AsyncGenerator[str, None]:
         prev_resampled_audio = None
         fade_length = int(OPENAI_TTS_SAMPLING_RATE * 0.02)  # 20ms
@@ -315,12 +344,29 @@ class HiggsAudioServingAudio(OpenAIServing):
         fade_out_audio = None
         finish_reason_sent = False
         previous_num_tokens = 0
+
+        # Token usage tracking
+        prompt_tokens = 0
+        completion_tokens = 0
+        audio_tokens = 0
+        start_time = time.time()
         try:
             async for res in result_generator:
                 assert len(
                     res.outputs
                 ) == 1, "Only one output should be generated per request"
                 output = res.outputs[0]
+
+                # Track token usage
+                if hasattr(res, 'prompt_token_ids') and res.prompt_token_ids:
+                    prompt_tokens = len(res.prompt_token_ids)
+                completion_tokens += len(output.token_ids)
+                if output.mm_token_ids is not None:
+                    # Handle both tensor and list formats
+                    if hasattr(output.mm_token_ids, 'shape'):
+                        audio_tokens += output.mm_token_ids.shape[0]
+                    else:
+                        audio_tokens += len(output.mm_token_ids)
 
                 if finish_reason_sent:
                     continue
@@ -441,6 +487,19 @@ class HiggsAudioServingAudio(OpenAIServing):
                     fade_out=fade_out)
                 yield output_audio
 
+        # Store usage stats in request state (if available)
+        total_time = time.time() - start_time
+        usage_stats = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "audio_tokens": audio_tokens,
+            "total_tokens": prompt_tokens + completion_tokens,
+            "total_time_s": round(total_time, 3),
+        }
+        if raw_request is not None:
+            raw_request.state.usage_stats = usage_stats
+        logger.info("Audio speech usage: %s", usage_stats)
+
         # Yield an empty chunk to indicate the end of the stream
         yield b''
 
@@ -448,6 +507,10 @@ class HiggsAudioServingAudio(OpenAIServing):
                               prev_resampled_audio: np.ndarray,
                               request: AudioSpeechRequest, fade_length: int,
                               fade_in: np.ndarray, fade_out: np.ndarray):
+        # Apply speed change if requested (before resampling for better quality)
+        if request.speed != 1.0:
+            audio_chunk = apply_speed(audio_chunk, request.speed)
+
         needs_upsample = self.audio_tokenizer.sampling_rate != OPENAI_TTS_SAMPLING_RATE
         # Resample if needed
         if needs_upsample:

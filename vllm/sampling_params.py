@@ -237,6 +237,10 @@ class SamplingParams(
     bad_words: Optional[list[str]] = None
     _bad_words_token_ids: Optional[list[list[int]]] = None
 
+    # RAS (Repetition Aware Sampling) parameters for audio generation
+    ras_window_length: Optional[int] = None
+    ras_max_num_repeat: Optional[int] = None
+
     @staticmethod
     def from_optional(
         n: Optional[int] = 1,
@@ -269,6 +273,8 @@ class SamplingParams(
         logit_bias: Optional[Union[dict[int, float], dict[str, float]]] = None,
         allowed_token_ids: Optional[list[int]] = None,
         extra_args: Optional[dict[str, Any]] = None,
+        ras_window_length: Optional[int] = None,
+        ras_max_num_repeat: Optional[int] = None,
     ) -> "SamplingParams":
         if logit_bias is not None:
             # Convert token_id to integer
@@ -311,6 +317,8 @@ class SamplingParams(
             logit_bias=logit_bias,
             allowed_token_ids=allowed_token_ids,
             extra_args=extra_args,
+            ras_window_length=ras_window_length,
+            ras_max_num_repeat=ras_max_num_repeat,
         )
 
     def __post_init__(self) -> None:
@@ -432,6 +440,21 @@ class SamplingParams(
         if self.best_of != self._real_n and self.output_kind == (
                 RequestOutputKind.DELTA):
             raise ValueError("best_of must equal n to use output_kind=DELTA")
+        # RAS parameter validation
+        if self.ras_window_length is not None:
+            if self.ras_window_length < 1:
+                raise ValueError(
+                    f"ras_window_length must be >= 1, got {self.ras_window_length}")
+            if self.ras_max_num_repeat is None:
+                raise ValueError(
+                    "ras_max_num_repeat must be set when ras_window_length is set")
+        if self.ras_max_num_repeat is not None:
+            if self.ras_max_num_repeat < 1:
+                raise ValueError(
+                    f"ras_max_num_repeat must be >= 1, got {self.ras_max_num_repeat}")
+            if self.ras_window_length is None:
+                raise ValueError(
+                    "ras_window_length must be set when ras_max_num_repeat is set")
 
     def _verify_greedy_sampling(self) -> None:
         if self.n > 1:
