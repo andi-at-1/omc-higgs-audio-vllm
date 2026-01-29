@@ -83,6 +83,14 @@ class LoggingStatLogger(StatLoggerBase):
 
         scheduler_stats = self.last_scheduler_stats
 
+        # Skip logging when idle (no throughput and no active requests).
+        is_idle = (prompt_throughput == 0.0
+                   and generation_throughput == 0.0
+                   and scheduler_stats.num_running_reqs == 0
+                   and scheduler_stats.num_waiting_reqs == 0)
+        if is_idle:
+            return
+
         # Format and print output.
         logger.info(
             "Engine %03d: "
