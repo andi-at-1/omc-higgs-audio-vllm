@@ -97,9 +97,14 @@ def pcm_to_target_format_bytes(pcm_data: np.ndarray, response_format: str,
     if target_sr is not None and target_sr != original_sr:
         wav_audio = wav_audio.set_frame_rate(target_sr)
 
-    # Convert WAV to MP3
+    # Convert to target format
     target_io = io.BytesIO()
-    wav_audio.export(target_io, format=response_format)
+    export_params = []
+    if response_format == "mp3":
+        # Suppress Xing/Info header - it contains wrong duration/size values
+        # in streaming context since each chunk is encoded independently
+        export_params = ["-write_xing", "0"]
+    wav_audio.export(target_io, format=response_format, parameters=export_params)
     target_io.seek(0)
 
     return target_io.getvalue()
