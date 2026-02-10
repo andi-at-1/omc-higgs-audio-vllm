@@ -29,13 +29,26 @@ Reproduzierbare Audio-Generierung durch Setzen eines Seeds:
 ```
 
 ### Speed-Parameter
-Anpassung der Sprechgeschwindigkeit (0.5 - 2.0):
+Anpassung der Sprechgeschwindigkeit (0.25 - 4.0):
 ```json
 {
   "input": "Text zum Sprechen",
   "speed": 1.2
 }
 ```
+
+### Audio-Formate (OpenAI-kompatibel)
+
+Default: `mp3`. Nur PCM wird nativ gestreamt. Alle anderen Formate werden komplett generiert und dann mit korrektem Header encodiert.
+
+| Format | Verhalten | Content-Type |
+|--------|-----------|-------------|
+| `pcm` | Streaming (headerless) | `audio/pcm` |
+| `mp3` | Collect+Encode (Default) | `audio/mpeg` |
+| `wav` | Collect+Encode | `audio/wav` |
+| `opus` | Collect+Encode | `audio/opus` |
+| `aac` | Collect+Encode | `audio/aac` |
+| `flac` | Collect+Encode | `audio/flac` |
 
 ### Voices Endpoint
 Abruf verfügbarer Stimmen:
@@ -119,14 +132,25 @@ Konfiguriert in `/root/swap/config.yaml` als `omc-higgs-tts`.
 
 ### TTS Request
 ```bash
+# MP3 (Default - kein response_format nötig)
 curl -X POST "http://localhost:8778/v1/audio/speech" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "bosonai/higgs-audio-v2-generation-3B-base",
     "input": "Hallo, dies ist ein Test.",
     "voice": "de_man",
-    "response_format": "wav",
     "seed": 42
+  }' \
+  --output test.mp3
+
+# WAV
+curl -X POST "http://localhost:8778/v1/audio/speech" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "bosonai/higgs-audio-v2-generation-3B-base",
+    "input": "Hallo, dies ist ein Test.",
+    "voice": "de_man",
+    "response_format": "wav"
   }' \
   --output test.wav
 ```
@@ -140,10 +164,11 @@ client = OpenAI(base_url="http://localhost:8778/v1", api_key="dummy")
 response = client.audio.speech.create(
     model="bosonai/higgs-audio-v2-generation-3B-base",
     input="Hallo Welt!",
-    voice="de_man"
+    voice="de_man",
+    response_format="mp3"
 )
 
-response.stream_to_file("output.wav")
+response.stream_to_file("output.mp3")
 ```
 
 ## GPU-Anforderungen

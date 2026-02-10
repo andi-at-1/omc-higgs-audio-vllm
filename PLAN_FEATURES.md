@@ -13,6 +13,23 @@ Implementierung fehlender Features für die Audio Speech API:
 3. ✅ **`/v1/audio/voices` Endpoint** - API für verfügbare Stimmen
 4. ✅ **Usage Stats** - Token-Statistiken (geloggt + im Request-State)
 5. ✅ **Speed Parameter** - Sprechgeschwindigkeit anpassen (0.25-4.0x)
+6. ✅ **Audio-Encoding Fix** - Korrekte Header für alle Formate, OpenAI-kompatibel
+
+## Audio-Encoding
+
+Nur raw PCM wird nativ gestreamt (headerless). Alle anderen Formate (wav, mp3, opus, aac, flac)
+werden intern als PCM generiert, komplett gesammelt und dann einmal mit korrektem Header encodiert.
+
+| Format | Verhalten | Content-Type |
+|--------|-----------|-------------|
+| `pcm` | **Streaming** - headerless, nativ streambar | `audio/pcm` |
+| `mp3` | **Collect+Encode** - Default | `audio/mpeg` |
+| `wav` | **Collect+Encode** | `audio/wav` |
+| `opus` | **Collect+Encode** | `audio/opus` |
+| `aac` | **Collect+Encode** | `audio/aac` |
+| `flac` | **Collect+Encode** | `audio/flac` |
+
+**Default:** `mp3` (OpenAI-kompatibel)
 
 ### Neue Parameter
 | Parameter | Beschreibung | Typischer Wert |

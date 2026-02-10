@@ -97,17 +97,25 @@ def pcm_to_target_format_bytes(pcm_data: np.ndarray, response_format: str,
     if target_sr is not None and target_sr != original_sr:
         wav_audio = wav_audio.set_frame_rate(target_sr)
 
-    # Convert to target format
     target_io = io.BytesIO()
-    export_params = []
-    if response_format == "mp3":
-        # Suppress Xing/Info header - it contains wrong duration/size values
-        # in streaming context since each chunk is encoded independently
-        export_params = ["-write_xing", "0"]
-    wav_audio.export(target_io, format=response_format, parameters=export_params)
+    wav_audio.export(target_io, format=response_format)
     target_io.seek(0)
 
     return target_io.getvalue()
+
+
+def encode_pcm_bytes_to_format(pcm_bytes: bytes, target_format: str) -> bytes:
+    """Encode complete raw PCM bytes to target audio format in one pass."""
+    audio_segment = AudioSegment(
+        pcm_bytes,
+        frame_rate=OPENAI_TTS_SAMPLING_RATE,
+        sample_width=OPENAI_TTS_BIT_DEPTH // 8,
+        channels=OPENAI_TTS_CHANNELS,
+    )
+    output = io.BytesIO()
+    audio_segment.export(output, format=target_format)
+    output.seek(0)
+    return output.getvalue()
 
 
 def load_voice_presets(state: State,

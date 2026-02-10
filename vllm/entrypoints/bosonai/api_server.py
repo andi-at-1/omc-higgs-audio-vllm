@@ -32,6 +32,7 @@ from vllm.config import ModelConfig
 from vllm.engine.arg_utils import AsyncEngineArgs, nullable_str
 from vllm.engine.protocol import EngineClient
 from vllm.entrypoints.bosonai.serving_audio import (HiggsAudioServingAudio,
+                                                    encode_pcm_bytes_to_format,
                                                     load_voice_presets)
 # yapf: enable
 from vllm.entrypoints.bosonai.serving_chat import HiggsAudioServingChat
@@ -566,6 +567,13 @@ async def create_audio_speech(request: AudioSpeechRequest,
                               raw_request: Request):
     handler = audio(raw_request)
 
+    # Only raw PCM is truly streamable (no headers). All other formats
+    # (wav, mp3, opus, etc.) need complete data for correct headers.
+    target_format = request.response_format
+    needs_post_encoding = target_format != "pcm"
+    if needs_post_encoding:
+        request.response_format = "pcm"
+
     generator = await handler.create_audio_speech_stream(
         request,
         voice_presets=voice_presets(raw_request),
@@ -576,13 +584,26 @@ async def create_audio_speech(request: AudioSpeechRequest,
         return JSONResponse(content=generator.model_dump(),
                             status_code=generator.code)
 
-    content_type_map = {
-        "mp3": "audio/mpeg",
-        "wav": "audio/wav",
-        "pcm": "audio/pcm",
-    }
-    media_type = content_type_map.get(request.response_format, "audio/mpeg")
-    return StreamingResponse(content=generator, media_type=media_type)
+    if needs_post_encoding:
+        # Collect all PCM chunks, encode complete audio in one pass
+        pcm_chunks = []
+        async for chunk in generator:
+            if chunk:
+                pcm_chunks.append(chunk)
+        full_pcm = b''.join(pcm_chunks)
+        encoded = encode_pcm_bytes_to_format(full_pcm, target_format)
+        content_type_map = {
+            "mp3": "audio/mpeg",
+            "opus": "audio/opus",
+            "aac": "audio/aac",
+            "flac": "audio/flac",
+            "wav": "audio/wav",
+        }
+        media_type = content_type_map.get(target_format, "audio/mpeg")
+        return Response(content=encoded, media_type=media_type)
+
+    # PCM: stream raw audio data natively
+    return StreamingResponse(content=generator, media_type="audio/pcm")
 
 
 def detect_language_from_voice_id(voice_id: str) -> str:
