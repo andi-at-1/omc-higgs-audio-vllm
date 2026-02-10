@@ -576,7 +576,13 @@ async def create_audio_speech(request: AudioSpeechRequest,
         return JSONResponse(content=generator.model_dump(),
                             status_code=generator.code)
 
-    return StreamingResponse(content=generator, media_type="audio/mpeg")
+    content_type_map = {
+        "mp3": "audio/mpeg",
+        "wav": "audio/wav",
+        "pcm": "audio/pcm",
+    }
+    media_type = content_type_map.get(request.response_format, "audio/mpeg")
+    return StreamingResponse(content=generator, media_type=media_type)
 
 
 def detect_language_from_voice_id(voice_id: str) -> str:

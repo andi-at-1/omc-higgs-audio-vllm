@@ -1762,7 +1762,7 @@ class AudioSpeechRequest(OpenAIBaseModel):
     top_k: int = 50
     """ The top k of the audio speech request. """
 
-    response_format: Literal["wav", "mp3", "pcm"] = "pcm"
+    response_format: Literal["wav", "mp3", "pcm"] = "mp3"
     """ The response format of the audio speech request. """
 
     stop: Optional[list[str]] = None
