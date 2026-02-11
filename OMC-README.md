@@ -50,24 +50,28 @@ Default: `mp3`. Nur PCM wird nativ gestreamt. Alle anderen Formate werden komple
 | `aac` | Collect+Encode | `audio/aac` |
 | `flac` | Collect+Encode | `audio/flac` |
 
+### Voice Presets
+
+Konfiguriert in `voice_presets/config.json`. Der **erste Eintrag** ist die Default-Stimme (Fallback bei unbekannter/fehlender Voice).
+
+Aktuell: `ingrid_de` (Deutsch) als Default.
+
+| Voice | Sprache |
+|-------|---------|
+| `ingrid_de` | Deutsch (Default) |
+| `belinda` | English |
+| `broom_salesman` | English |
+| `chadwick` | English |
+| `en_man` | English |
+| `en_woman` | English |
+| `mabel` | English |
+| `vex` | English |
+| `zh_man_sichuan` | Chinesisch |
+
 ### Voices Endpoint
 Abruf verfügbarer Stimmen:
 ```bash
 curl http://localhost:8778/v1/audio/voices
-```
-
-Response:
-```json
-{
-  "voices": [
-    {"voice_id": "en_man", "name": "English Man", "language": "en"},
-    {"voice_id": "en_woman", "name": "English Woman", "language": "en"},
-    {"voice_id": "de_man", "name": "German Man", "language": "de"},
-    {"voice_id": "de_woman", "name": "German Woman", "language": "de"},
-    {"voice_id": "zh_man", "name": "Chinese Man", "language": "zh"},
-    {"voice_id": "zh_woman", "name": "Chinese Woman", "language": "zh"}
-  ]
-}
 ```
 
 ### Usage Stats
