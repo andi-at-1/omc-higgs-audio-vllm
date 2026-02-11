@@ -585,7 +585,9 @@ class SamplingParams(
             f"{self.spaces_between_special_tokens}, "
             f"truncate_prompt_tokens={self.truncate_prompt_tokens}, "
             f"guided_decoding={self.guided_decoding}, "
-            f"extra_args={self.extra_args})")
+            f"extra_args={self.extra_args}, "
+            f"ras_window_length={self.ras_window_length}, "
+            f"ras_max_num_repeat={self.ras_max_num_repeat})")
 
 
 class BeamSearchParams(
