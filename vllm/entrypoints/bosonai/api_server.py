@@ -588,8 +588,17 @@ async def create_audio_speech(request: AudioSpeechRequest,
         # Collect all PCM chunks, encode complete audio in one pass
         pcm_chunks = []
         async for chunk in generator:
-            if chunk:
+            if isinstance(chunk, bytes) and chunk:
                 pcm_chunks.append(chunk)
+            elif isinstance(chunk, str):
+                # Error response from stream generator
+                return JSONResponse(
+                    content={"error": chunk},
+                    status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
+        if not pcm_chunks:
+            return JSONResponse(
+                content={"error": "No audio data generated"},
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
         full_pcm = b''.join(pcm_chunks)
         encoded = encode_pcm_bytes_to_format(full_pcm, target_format)
         content_type_map = {
